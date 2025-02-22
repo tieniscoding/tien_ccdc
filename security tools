@@ -1,0 +1,112 @@
+sudo dnf install -y epel-release
+
+# Update package lists
+sudo dnf update -y
+
+
+Comprehensive Security Tools Setup Guide
+Prerequisites
+bashCopy# Install EPEL Repository (if not already done)
+sudo dnf install -y epel-release
+
+# Update system packages
+sudo dnf update -y
+1. RKHunter (Rootkit Hunter) Installation and Configuration
+Installation
+bashCopy# Install RKHunter
+sudo dnf install -y rkhunter
+
+# Update RKHunter database
+sudo rkhunter --update
+Initial Configuration
+bashCopy# Perform first-time system scan and whitelist
+sudo rkhunter --check --sk
+
+# Whitelist any false positives
+# Edit /etc/rkhunter.conf to add whitelist entries
+sudo nano /etc/rkhunter.conf
+
+# Example whitelist entry
+# ALLOWHIDDENDIR=/dev/.udev
+# ALLOWHIDDENFILE=/dev/.udev/rules.d/
+Scheduled Scanning
+bashCopy# Create a cron job for daily scans
+sudo tee /etc/cron.daily/rkhunter-scan << EOF
+#!/bin/bash
+/usr/bin/rkhunter --check --quiet --cronjob 2>&1 | mail -s "Daily RKHunter Scan" root
+EOF
+
+# Make the script executable
+sudo chmod +x /etc/cron.daily/rkhunter-scan
+2. Lynis Security Auditing
+Installation
+bashCopy# Install Lynis
+sudo dnf install -y lynis
+
+# Perform initial system audit
+sudo lynis audit system
+Best Practices
+bashCopy# Run comprehensive security audit
+sudo lynis audit system --verbose
+
+# Generate security report
+sudo lynis generate report
+
+# View suggestions
+# Check /var/log/lynis-report.dat for detailed findings
+Scheduled Scanning
+bashCopy# Create weekly lynis scan cron job
+sudo tee /etc/cron.weekly/lynis-scan << EOF
+#!/bin/bash
+/usr/bin/lynis audit system --quiet > /var/log/lynis-weekly-scan.log
+EOF
+
+# Make the script executable
+sudo chmod +x /etc/cron.weekly/lynis-scan
+3. ClamAV Antivirus Installation
+Installation
+bashCopy# Install ClamAV
+sudo dnf install -y clamav clamav-update clamd
+
+# Update virus definitions
+sudo freshclam
+
+# Enable and start ClamAV daemon
+sudo systemctl enable clamd@scan
+sudo systemctl start clamd@scan
+Manual Virus Scan
+bashCopy# Full system scan
+sudo clamscan -r /
+
+# Scan with detailed logging
+sudo clamscan -r / --log=/var/log/clamav-scan.log
+
+# Scan home directory
+clamscan -r ~
+Scheduled Scanning
+bashCopy# Create weekly full system scan
+sudo tee /etc/cron.weekly/clamav-scan << EOF
+#!/bin/bash
+/usr/bin/clamscan -r / --exclude-dir=^/sys\|^/dev\|^/proc --log=/var/log/clamav-weekly-scan.log
+EOF
+
+# Make the script executable
+sudo chmod +x /etc/cron.weekly/clamav-scan
+4. Integration and Reporting
+Centralized Logging
+bashCopy# Ensure logs are saved
+sudo mkdir -p /var/log/security-scans
+
+# Update log rotation
+sudo tee /etc/logrotate.d/security-scans << EOF
+/var/log/security-scans/*.log {
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        /bin/kill -HUP $(/bin/cat /var/run/syslogd.pid 2>/dev/null) 2>/dev/null || true
+    endscript
+}
+EOF
