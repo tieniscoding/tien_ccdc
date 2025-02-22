@@ -1,0 +1,129 @@
+CCDC Splunk Server Final Security Implementation Plan
+Step-by-Step Implementation Guide
+1. Pre-Configuration Preparation
+bashCopy# Update system
+sudo dnf update -y
+
+# Install necessary tools
+sudo dnf install -y policycoreutils-python-utils
+2. Firewall Configuration
+bashCopy# Ensure firewalld is running
+sudo systemctl enable firewalld
+sudo systemctl start firewalld
+
+# Set default zone to drop
+sudo firewall-cmd --set-default-zone=drop
+
+# Remove unnecessary services
+sudo firewall-cmd --permanent --remove-service=cockpit
+sudo firewall-cmd --permanent --remove-service=dhcpv6-client
+sudo firewall-cmd --permanent --remove-service=ssh
+
+# Open required Splunk ports
+sudo firewall-cmd --permanent --add-port=8000/tcp   # Web Interface
+sudo firewall-cmd --permanent --add-port=8089/tcp   # Management Port
+sudo firewall-cmd --permanent --add-port=9998/tcp   # Custom Log Collection
+sudo firewall-cmd --permanent --add-port=1514/udp   # Syslog UDP
+
+# Allow established connections
+sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source not ipv4 dst 127.0.0.0/8 accept'
+sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source not ipv4 dst ::1/128 accept'
+
+# Reload firewall
+sudo firewall-cmd --reload
+3. SELinux Hardening
+bashCopy# Enforce SELinux
+sudo setenforce 1
+
+# Configure SELinux port contexts
+sudo semanage port -a -t splunk_port_t -p tcp 8000
+sudo semanage port -a -t splunk_port_t -p tcp 8089
+sudo semanage port -a -t splunk_port_t -p tcp 9998
+sudo semanage port -a -t syslogd_port_t -p udp 1514
+
+# Verify SELinux status
+sudo sestatus
+4. Splunk User and Credential Management
+bashCopy# Disable default admin
+sudo -u splunk splunk disable user admin
+
+# Create competition user (replace with your own secure password)
+sudo -u splunk splunk add user ccdc_user -password 'C0mpet1t10n2024!'
+5. Splunk Configuration Hardening
+bashCopy# Create minimal server configuration
+sudo tee /opt/splunk/etc/system/local/server.conf << EOF
+[general]
+allowRemoteLogin = never
+
+[sslConfig]
+supportSSLV3 = false
+EOF
+
+# Secure file permissions
+sudo chmod 750 /opt/splunk/etc
+sudo chmod 750 /opt/splunk/var
+sudo chown -R splunk:splunk /opt/splunk
+
+# Remove world-readable files
+sudo find /opt/splunk -type f -perm /o+r -exec chmod o-r {} \;
+6. System Service Hardening
+bashCopy#!/bin/bash
+
+# Disable unnecessary services
+sudo systemctl disable NetworkManager
+sudo systemctl disable postfix
+sudo systemctl disable cups
+sudo systemctl disable avahi-daemon
+
+# Remove unnecessary packages
+sudo yum remove -y xinetd telnet-server tftp-server
+
+# Minimal user cleanup
+for user in games gopher ftp; do
+    sudo userdel $user 2>/dev/null
+done
+
+# Restrict SSH (if needed)
+sudo sed -i 's/^PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
+7. Logging and Monitoring
+bashCopy# Enable Splunk boot start
+sudo -u splunk splunk enable boot-start
+
+# Set log forwarding
+sudo -u splunk splunk set log-forwarding -host localhost
+Final Verification Checklist
+
+ Firewall restricts all but required ports
+ SELinux is enforcing
+ Default admin account disabled
+ Competition user created
+ Unnecessary services removed
+ File permissions secured
+ Logging enabled
+
+Troubleshooting Tips
+
+If scoring doesn't work:
+
+Check firewall rules
+Verify SELinux contexts
+Confirm Splunk service status
+
+
+Verify configuration:
+
+bashCopy# Check firewall
+sudo firewall-cmd --list-all
+
+# Check SELinux
+sudo sestatus
+
+# Check Splunk status
+sudo -u splunk splunk status
+Important Notes:
+
+Test in a practice environment first
+Have a backup and recovery plan
+Stay alert and responsive during competition
+
+Warning: Adapt configuration to specific competition requirements. Test thoroughly!
