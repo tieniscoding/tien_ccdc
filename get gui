@@ -1,0 +1,17 @@
+# 1. Update the system
+sudo dnf update -y
+
+# 2. Install basic graphical environment
+sudo dnf groupinstall -y "Server with GUI"
+
+# 3. Install a lightweight desktop environment
+sudo dnf install -y xfce4-session xfce4-desktop
+
+# 4. Install Firefox
+sudo dnf install -y firefox
+
+# 5. Set system to boot into graphical mode
+sudo systemctl set-default graphical.target
+
+# 7. Reboot to apply changes
+sudo systemctl reboot
