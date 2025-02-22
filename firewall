@@ -1,0 +1,48 @@
+# --- FIREWALLD CONFIGURATION ---
+# Check current firewalld status
+systemctl status firewalld
+
+# Start and enable firewalld if not running
+systemctl start firewalld
+systemctl enable firewalld
+
+# Remove SSH service completely
+firewall-cmd --permanent --remove-service=ssh
+
+# Remove any other unnecessary services
+firewall-cmd --permanent --zone=public --remove-service=dhcpv6-client
+firewall-cmd --permanent --zone=public --remove-service=cockpit
+
+# Allow only specific ports needed for Splunk
+firewall-cmd --permanent --add-port=8000/tcp  # Splunk web interface (your scored port)
+firewall-cmd --permanent --add-port=8089/tcp  # Splunk management port
+firewall-cmd --permanent --add-port=9998/tcp  # Windows logs collection (your custom port)
+firewall-cmd --permanent --add-port=1514/tcp  # rsyslog
+firewall-cmd --permanent --add-port=1514/udp  # rsyslog UDP
+
+# Block all other incoming traffic
+firewall-cmd --permanent --set-target=DROP
+
+# Reload to apply changes
+firewall-cmd --reload
+
+# Verify firewalld configuration
+firewall-cmd --list-all
+
+# --- SELINUX CONFIGURATION ---
+# Install policycoreutils-python-utils if needed
+dnf install -y policycoreutils-python-utils
+
+# Add port 1514 to the syslogd_port_t context for both TCP and UDP
+semanage port -a -t syslogd_port_t -p tcp 1514
+semanage port -a -t syslogd_port_t -p udp 1514
+
+# If the port is already defined in a different context, modify instead of add
+# semanage port -m -t syslogd_port_t -p tcp 1514
+# semanage port -m -t syslogd_port_t -p udp 1514
+
+# Verify SELinux port configuration
+semanage port -l | grep syslogd_port_t
+
+# Ensure SELinux is enforcing
+sestatus
