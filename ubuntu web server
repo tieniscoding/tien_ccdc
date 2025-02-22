@@ -1,0 +1,34 @@
+# Network Interface Control
+ip link show
+sudo ifdown eth1
+sudo ifdown eth2
+
+# Disable SSH
+sudo systemctl stop ssh
+sudo systemctl disable ssh
+sudo apt purge -y openssh-server openssh-client
+sudo apt autoremove -y
+
+# If you want to keep web capabilities, install a lightweight browser
+sudo apt update
+sudo apt install -y firefox-esr  # Lightweight, secure browser option
+
+# Remove Apache completely
+sudo systemctl stop apache2
+sudo systemctl disable apache2
+sudo apt purge -y apache2
+sudo apt autoremove -y
+sudo rm -rf /etc/apache2
+sudo rm -rf /var/www/html
+
+# Firewall Hardening
+sudo iptables -F
+sudo iptables -P INPUT DROP
+sudo iptables -P OUTPUT ACCEPT
+sudo iptables -P FORWARD DROP
+sudo iptables -A INPUT -i lo -j ACCEPT
+sudo iptables -A OUTPUT -o lo -j ACCEPT
+sudo iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+sudo iptables -A INPUT -p tcp --dport 80 -j ACCEPT   # HTTP
+sudo iptables -A INPUT -p tcp --dport 443 -j ACCEPT  # HTTPS
+sudo iptables-save > /etc/iptables/rules.v4
