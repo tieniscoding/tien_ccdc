@@ -1,0 +1,106 @@
+Minute 1-3: Identify System Services & Admin Accounts
+bashCopy# List all running services
+systemctl list-units --type=service --state=running
+
+# Check network ports and connections
+ss -tulpn
+
+# Find all users with admin privileges
+awk -F: '($3 == "0") {print}' /etc/passwd  # UID 0 accounts
+grep -Po '^sudo.+:\K.*$' /etc/group | tr ',' '\n'  # sudo group members
+grep -Po '^wheel.+:\K.*$' /etc/group | tr ',' '\n'  # wheel group members
+grep -E "ALL=\(ALL\)|NOPASSWD: ALL" /etc/sudoers /etc/sudoers.d/* 2>/dev/null  # direct sudo permissions
+Minute 4-6: Configure Firewall Security
+bashCopy# Configure firewalld for only necessary ports
+firewall-cmd --permanent --add-port=8000/tcp  # Splunk web interface
+firewall-cmd --permanent --add-port=8089/tcp  # Splunk management
+firewall-cmd --permanent --add-port=9998/tcp  # Windows logs port
+firewall-cmd --permanent --add-port=1514/tcp  # rsyslog TCP
+firewall-cmd --permanent --add-port=1514/udp  # rsyslog UDP
+firewall-cmd --reload
+
+# Verify configuration
+firewall-cmd --list-all
+Minute 7-10: Secure Admin Accounts
+bashCopy# Change root password
+passwd root
+
+# Create sysadmin group for sudo access
+groupadd sysadmin
+usermod -aG sysadmin your_username
+
+# Restrict sudo to sysadmin group using visudo
+visudo
+# Add: %sysadmin ALL=(ALL) ALL
+# Comment out: %wheel ALL=(ALL) ALL and %sudo ALL=(ALL) ALL
+
+# Disable login for suspicious or unnecessary accounts
+for user in $(awk -F: '($3 >= 1000 && $1 != "your_username") {print $1}' /etc/passwd); do
+  usermod -s /sbin/nologin $user
+done
+
+# Change Splunk admin password
+/opt/splunk/bin/splunk edit user admin -password "NewSecurePassword123!" -auth admin:changeme
+Minute 11-12: Disable Unnecessary Services
+bashCopy# Disable Bluetooth services
+systemctl stop bluetooth
+systemctl disable bluetooth
+
+# Disable printing services
+systemctl stop cups
+systemctl disable cups
+
+# Disable GUI-related services if running headless
+systemctl disable gdm
+systemctl disable accounts-daemon
+
+# Disable web console
+systemctl stop cockpit.socket
+systemctl disable cockpit.socket
+
+# Disable NFS services
+systemctl stop nfs-server
+systemctl disable nfs-server
+systemctl stop rpcbind
+systemctl disable rpcbind
+
+# Disable LDAP services
+systemctl stop slapd
+systemctl disable slapd
+Minute 13-14: Find Security Vulnerabilities
+bashCopy# Find world-writable files in critical system locations
+find /etc /bin /sbin /usr/bin /usr/sbin -type f -perm -002 -ls
+
+# Find world-writable files in Splunk directory
+find /opt/splunk -type f -perm -002 -ls
+
+# Find SUID binaries (potential privilege escalation)
+find / -type f -perm -4000 -ls 2>/dev/null | grep -v snap
+Minute 15: Configure Splunk Security
+bashCopy# Configure Splunk inputs for your custom ports
+cat > /opt/splunk/etc/system/local/inputs.conf << EOF
+[splunktcp://9998]
+connection_host = ip
+disabled = 0
+
+[udp://1514]
+sourcetype = syslog
+index = main
+disabled = 0
+
+[tcp://1514]
+sourcetype = syslog
+index = main
+disabled = 0
+EOF
+
+# Set proper file permissions
+chown -R splunk:splunk /opt/splunk/
+
+# Create basic security monitoring
+/opt/splunk/bin/splunk savedsearch create -name "Authentication Failures" \
+  -search "index=* sourcetype=*auth* (fail* OR invalid OR error)" \
+  -auth admin:NewSecurePassword123!
+
+# Restart Splunk to apply changes
+/opt/splunk/bin/splunk restart
